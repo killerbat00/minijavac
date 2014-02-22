@@ -10,7 +10,6 @@
  */
 package miniJava;
 
-import miniJava.SyntacticAnalyzer.ParserOld;
 import miniJava.SyntacticAnalyzer.Parser;
 import miniJava.SyntacticAnalyzer.Scanner;
 import miniJava.SyntacticAnalyzer.SourceFile;
