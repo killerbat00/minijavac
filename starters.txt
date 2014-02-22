@@ -1,0 +1,65 @@
+Starters[Program] ->
+	class
+
+Starters[ClassDeclaration] ->
+	class
+
+Starters[FieldDeclaration] ->
+	public, private, static, int, boolean, void, id
+
+Starters[MethodDeclaration] ->
+	public, private, static, int, boolean, void, id
+
+Starters[Declarators] ->
+	public, private, static, int, boolean, void, id
+
+Starters[Type] ->
+	int, boolean, void, id, int
+
+Starters[PrimType] ->
+	int, boolean, void
+
+Starters[ClassType] ->
+	id
+
+Starters[ArrType] ->
+	int, Starters[ClassType]
+
+Starters[ParameterList] ->
+	Starters[Type]
+
+Starters[ArgumentList] ->
+	Starters[Expression]
+
+Starters[Reference] ->
+	Starters[BaseRef]
+
+Starters[BaseRef] ->
+	this, id
+
+Starters[RefArrID] ->
+	[
+
+Starters[RefTail] ->
+	.
+
+Starters[DotFollow] ->
+	id
+
+Starters[Statement] ->
+	{, Starters[Type], Starters[Reference], if, while
+
+Starters[SmtRefTail] ->
+	=, (
+
+Starters[Expression] ->
+	Starters[Reference], unop, (, num, true, false, new
+
+Starters[ExpTail] ->
+	binop
+
+Starters[ExpRefTail] ->
+	(
+
+Starters[ExpDecl] ->
+	id, int
