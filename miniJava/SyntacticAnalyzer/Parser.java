@@ -11,6 +11,7 @@
 package miniJava.SyntacticAnalyzer;
 
 import miniJava.*;
+import miniJava.AbstractSyntaxTrees.*;
 
 public class Parser {
     private Scanner scanner;
@@ -281,8 +282,7 @@ public class Parser {
 		pBaseRef();
 		if(inRefTailStarterSet(currentToken.type)) {
 			pRefTail();
-		} 
-		
+		} 	
 	};
 	
 	/* BaseRef ->
@@ -295,7 +295,7 @@ public class Parser {
     	case (Token.THIS):
     		acceptIt();
     		break;
-    	case (Token.ID):
+		case (Token.ID):
     		acceptIt();
     		if(inRefArrIDStarterSet(currentToken.type)) {
     			pRefArrID();
@@ -304,19 +304,19 @@ public class Parser {
     	default:
     		syntacticError("Malformed BaseReference\n"
     				+"\texpected 'this' or 'id', instead of", currentToken.spelling);
+    		break;
     	}
     };
     
     /* RefArrID ->
-     * 		[ Expression? ]
+     * 		[ Expression ]
      */
+    //IndexedRef
     private void pRefArrID() {
     	if(verbose)
     		System.out.println("parseRefArrID");
 		accept(Token.LBRACKET);
-		if(inExpressionStarterSet(currentToken.type)) {
-			pExpression();
-		}
+		pExpression();
 		accept(Token.RBRACKET);
 	}
     
