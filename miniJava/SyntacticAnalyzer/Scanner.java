@@ -16,13 +16,15 @@ import miniJava.ErrorReporter;
 public class Scanner {
 	private SourceFile sourceFile;
 	private char currentChar;
+	private char previousChar;
 	private StringBuffer currentSpelling;
 	private boolean currentlyScanningToken;
 	
 	private int comStart;
 	private int comStartLine;
 	private int comFinish;
-	int currentCharNum;
+	int currentCharNum = 1;
+	int currentLineNum = 1;
 	
 	private ErrorReporter reporter;
 	
@@ -30,11 +32,17 @@ public class Scanner {
 		sourceFile = source;
 		reporter = r;
 		currentChar = sourceFile.getSource();
-		currentCharNum = 0;
 	}
 	
 	private void consume() {
-		currentCharNum++;
+		previousChar = currentChar;
+		if(currentChar == '\t')
+			currentCharNum += 4;
+		else
+			currentCharNum++;
+		
+		if(currentChar == '\n' || (previousChar == '\r' && currentChar == '\n'))
+			currentLineNum++;
 		if(currentlyScanningToken) {
 			currentSpelling.append(currentChar);
 		}
@@ -179,7 +187,7 @@ public class Scanner {
 	private boolean scanSeparator() {
 		switch(currentChar) {
 		case '/':
-			comStartLine = sourceFile.getCurrentLine();
+			comStartLine = currentLineNum;
 			comStart = currentCharNum;
 			consume();
 			comFinish = currentCharNum;
@@ -249,7 +257,7 @@ public class Scanner {
 		currentlyScanningToken = true;
 		currentSpelling = new StringBuffer("");
 		pos = new SourcePosition();
-		pos.line = sourceFile.getCurrentLine();
+		pos.line = currentLineNum;
 		pos.start = currentCharNum;
 		type = scanToken();
 		pos.finish = currentCharNum;

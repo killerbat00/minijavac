@@ -37,8 +37,6 @@ public class Parser {
     void syntacticError(String messageTemplate,
                         String tokenQuoted) {
         SourcePosition pos = currentToken.position;
-        pos.start += 1;
-        pos.finish += 1;
         errorReporter.reportError(messageTemplate + " " + tokenQuoted + " " + pos);
     }
 

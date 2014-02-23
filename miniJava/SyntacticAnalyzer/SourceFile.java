@@ -21,7 +21,6 @@ public class SourceFile {
 	
 	public java.io.File sourceFile;
 	public java.io.FileInputStream source;
-	int currentLine;
 
 	private boolean checkFilename(String file) {
 		if(file.indexOf('.') == -1) {
@@ -39,12 +38,10 @@ public class SourceFile {
 			try {
 				sourceFile = new java.io.File(filename);
 				source = new java.io.FileInputStream(sourceFile);
-				currentLine = 1;
 			} catch (java.io.IOException e) {
 				reporter.reportError(e.toString());
 				sourceFile = null;
 				source = null;
-				currentLine = 0;
 			}
 		} else {
 			reporter.reportError("Bad filename: " + filename);
@@ -52,12 +49,11 @@ public class SourceFile {
 	}
 	
 	public char getSource() {
+		int c;
 		try {
-			int c = source.read();
+			c = source.read();
 			if (c == -1) {
 				c = EOT;
-			} else if (c == eolUnix || c == eolWindows) {
-				currentLine++;
 			}
 			return (char) c;
 			
@@ -65,9 +61,5 @@ public class SourceFile {
 			reporter.reportError(e.toString());
 			return EOT;
 		}
-	}
-	
-	public int getCurrentLine() {
-		return currentLine;
 	}
 }
