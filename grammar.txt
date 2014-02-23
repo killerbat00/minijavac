@@ -25,7 +25,7 @@ ParemeterList -> Type id (, Type id)*
 
 ArgumentList -> Expression (, Expression)*
 
-Reference -> BaseRef RefTail?
+Reference -> BaseRef RefTail?	// Reference -> (this | id ([ Expression ])?) RefTail?
 BaseRef -> this | id RefArrID?
 RefArrID -> [ Expression ]
 RefTail -> . DotFollow RefTail?
@@ -41,15 +41,6 @@ Statement ->
 SmtRefTail -> = Expression ; | ( ArgumentList? ) ;
 
 Expression ->
-		Reference
-	|	Reference ( ArgumentList? )
-	|	unop Expression
-	|	Expression binop Expression
-	|	( Expression )
-	|	num | true | false
-	|	new (id() | int [ Expression ] | id [ Expression ] )
-
-Expression ->
 	  Reference ExpRefTail? ExpTail?
 	| unop Expression ExpTail?
 	| ( Expression ) ExpTail?
@@ -57,6 +48,15 @@ Expression ->
 	| true
 	| false
 	| new ExpDecl ExpTail?
-ExpTail -> binop Expression ExpTail?
+ExpTail -> binop Expression ExpTail? 
 ExpRefTail -> ( ArgumentList? )
-ExpDecl -> id (() | [ Expression ]) | int [ Expression ]
+ExpDecl -> id (() | [ Expression ]) | int [ Expression ]	
+
+MathExp -> Term MathExp'?
+MathExp' -> (+ | -) MathExp
+Term -> Factor Term'?
+Term' -> (* | / ) Term
+Factor ->
+		id
+	| ( MathExp )
+	| - Factor
