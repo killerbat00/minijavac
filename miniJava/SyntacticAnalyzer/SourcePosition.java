@@ -18,11 +18,17 @@ public class SourcePosition {
 		finish = 0;
 	}
 	
-	public SourcePosition(int line, int st, int fin) {
+	public SourcePosition(int l, int st, int fin) {
+		line = l;
 		start = st;
 		finish = fin;
 	}
 	
+	public SourcePosition(int start2, int end) {
+		start = start2;
+		finish = end;
+	}
+
 	public String toString() {
 		return "Line: " + line + " (" + start + ", " + finish + ")";
 	}

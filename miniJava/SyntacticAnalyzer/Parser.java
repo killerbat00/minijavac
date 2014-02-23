@@ -12,6 +12,7 @@ package miniJava.SyntacticAnalyzer;
 
 import miniJava.*;
 import miniJava.AbstractSyntaxTrees.*;
+import miniJava.AbstractSyntaxTrees.Package;
 
 public class Parser {
     private Scanner scanner;
@@ -77,23 +78,32 @@ public class Parser {
         position.finish = previousTokenPosition.finish;
     }
 
-    public void parse() {
+    public Package parse() {
+    	ClassDeclList cdl;
+    	int pstart, pstop;
     	if(verbose)
     		System.out.println("parse()");
         currentToken = scanner.scan();
-        pProgram();
+    	pstart = currentToken.position.start;
+        cdl = parseProgram();
+        pstop = currentToken.position.start;
+        return new Package(cdl, new SourcePosition(pstart, pstop));
     }
     
     /* Program ->
      * 		(ClassDeclaration)* EOT
      */
-    private void pProgram(){
+    private ClassDeclList parseProgram(){
+    	ClassDeclList cdl = new ClassDeclList();
+    	ClassDecl cdAST;
     	if(verbose)
     		System.out.println("parseProgram()");
     	while(currentToken.type == Token.CLASS) {
-    		pClassDeclaration();
+    		cdAST = parseClassDeclaration();
+    		cdl.add(cdAST);
     	}
     	accept(Token.EOT);
+    	return cdl;
     };
     
     /* Class Declaration ->
@@ -101,10 +111,16 @@ public class Parser {
      * 		(FieldDeclaration | MethodDeclaration)*
      * }
      */
-    private void pClassDeclaration(){
+    private ClassDecl parseClassDeclaration(){
     	if(verbose)
     		System.out.println("parseClassDeclaration");
+    	ClassDecl classDeclAST;
+    	FieldDeclList fieldDecList = new FieldDeclList();
+    	MethodDeclList methodDecList = new MethodDeclList();
+    	String className;
+    
     	accept(Token.CLASS);
+    	className = currentToken.spelling;
     	accept(Token.ID);
     	accept(Token.LCURLY);
     	
@@ -112,11 +128,17 @@ public class Parser {
     	//  (currentToken.type in starters[FieldDeclaration]
     	//  (currentToken.type in starters[MethodDeclaration]
     	while(inDeclaratorStarterSet(currentToken.type)) {
-    		pDeclarators();
+    		FieldDecl f;
+    		MethodDecl m;
+    		f = parseDeclarators();
+    		f.name = currentToken.spelling;
     		accept(Token.ID);
     		if(currentToken.type == Token.LPAREN) {
-    			pMethodDeclaration();
+    			m = parseMethodDeclaration(f);
+    			methodDecList.add(m);
+    		// FieldDeclaration
     		} else if(currentToken.type == Token.SEMICOLON){
+    			fieldDecList.add(f);
     			acceptIt();
     		} else {
     			syntacticError("( OR ; expected, instead of " + 
@@ -136,6 +158,8 @@ public class Parser {
     		syntacticError("Empty class declarations are allowed only with \n"
     				+ "\t';' or ' ' instead of", currentToken.spelling);
     	}
+    	classDeclAST = new ClassDecl(className, fieldDecList, methodDecList, currentToken.position);
+		return classDeclAST;
     };
     
     /* MethodDeclaration ->
@@ -143,7 +167,11 @@ public class Parser {
      * 			Statement* (return Expression ;)?
      * 		}
      */
-    private void pMethodDeclaration(){
+    private MethodDecl parseMethodDeclaration(FieldDecl f){
+    	ParameterDeclList pl = null;
+    	StatementList sl = new StatementList();
+    	Expression e = null;
+    	
     	if(verbose)
     		System.out.println("parseMethodDeclaration");
     	// We've already parsed Declarators and id
@@ -152,70 +180,85 @@ public class Parser {
     	
     	// ParameterList?
     	if (inParameterListStarterSet(currentToken.type))
-    		pParameterList();
+    		pl = parseParameterList();
     	
     	accept(Token.RPAREN);
     	accept(Token.LCURLY);
     	
     	// Statement*
     	while (inStatementStarterSet(currentToken.type)) {
-    		newPStatement();
+    		sl.add(parseStatement());
     	}
-    	
     	// return statement
     	if(currentToken.type == Token.RETURN) {
     		acceptIt();
-    		pExpression();
+    		e = parseExpression();
     		accept(Token.SEMICOLON);
     	}
     	accept(Token.RCURLY);
+    	return new MethodDecl(f, pl, sl, e, currentToken.position);
     };
     
     /* Declarators -> 
      * 		(public | private)? static? Type
      */
-    private void pDeclarators(){
+    private FieldDecl parseDeclarators(){
+    	boolean isPriv = false;
+    	boolean isStatic;
+    	Type typeAST;
     	if(verbose)
     		System.out.println("parseDeclarators");
     	// (public | private)?
     	if(currentToken.type == Token.PUBLIC
     		|| currentToken.type == Token.PRIVATE) {
+    		if(currentToken.type == Token.PUBLIC)
+    			isPriv = false;
+    		else
+    			isPriv = true;
     		acceptIt();
     	}
     	// static?
     	if(currentToken.type == Token.STATIC) {
+    		isStatic = true;
     		acceptIt();
-    	}
-    	// Type
-    	if(inTypeStarterSet(currentToken.type)) {
-    		pType();
     	} else {
-    		syntacticError("Declarator expected here\n"
-    				+ "instead of ", currentToken.spelling);
+    		isStatic = false;
     	}
+    	typeAST = parseType();
+    	return new FieldDecl(isPriv, isStatic, typeAST, null, currentToken.position);
     };
     
     /* Type ->
      * 		PrimType | ClassType | ArrType
      */
-    private void pType(){
+    private Type parseType(){
+    	Type ty;
     	if(verbose)
     		System.out.println("parseType");
     	switch(currentToken.type){
     	// PrimType
     	case Token.BOOLEAN:
-    	case Token.VOID:
+    		ty = new BaseType(TypeKind.BOOLEAN, currentToken.position);
     		acceptIt();
-    		break;
+    		return ty;
+    	case Token.VOID:
+    		ty = new BaseType(TypeKind.VOID, currentToken.position);
+    		acceptIt();
+    		return ty;
     	// ClassType
     	case Token.ID:
+    		String cn = currentToken.spelling;
+    		Identifier classname = new Identifier(cn, currentToken.position);
     		acceptIt();
     		// ArrayType aka ClassType aka id[]
     		if(currentToken.type == Token.LBRACKET) {
     			acceptIt();
     			accept(Token.RBRACKET);
+    			ty = new ArrayType(new ClassType(classname, currentToken.position), currentToken.position);
+    		} else {
+    			ty = new ClassType(classname, currentToken.position);
     		}
-    		break;
+    		return ty;
     	// PrimType INT
     	case Token.INT:
     		acceptIt();
@@ -223,88 +266,112 @@ public class Parser {
     		if(currentToken.type == Token.LBRACKET){
     			acceptIt();
     			accept(Token.RBRACKET);
+    			ty = new ArrayType(new BaseType(TypeKind.ARRAY, currentToken.position), currentToken.position);
+    		} else {
+    			ty = new BaseType(TypeKind.INT, currentToken.position);
     		}
-    		break;
+    		return ty;
     	default:
     		syntacticError("Type Declarator expected here\n"
     				+ "\t instead of ", currentToken.spelling);
-    		break;
+    		return new BaseType(TypeKind.ERROR, currentToken.position);
     	}
     };
     
     /* ParameterList ->
      * 		Type id (, Type id)*
      */
-    private void pParameterList(){
+    private ParameterDeclList parseParameterList(){
+    	ParameterDeclList pdl = new ParameterDeclList();
+    	Type t;
     	if(verbose)
     		System.out.println("parseParameterList");
     	//Type id 
-    	if(inTypeStarterSet(currentToken.type)) {
-    		pType();
+    	t = parseType();
+    	pdl.add(new ParameterDecl(t, currentToken.spelling, currentToken.position));
+    	accept(Token.ID);
+    	while(currentToken.type == Token.COMMA) {
+    		Type t1;
+    		acceptIt();
+    		t1 = parseType();
+    		pdl.add(new ParameterDecl(t1, currentToken.spelling, currentToken.position));
     		accept(Token.ID);
-    		while(currentToken.type == Token.COMMA) {
-    			acceptIt();
-    			pType();
-    			accept(Token.ID);
-    		}
-    	} else {
-    		//Malformed Parameter List
-    		syntacticError("Malformed Paramter list, expected Type", null);
     	}
+    	return pdl;
     };
     
     /* ArgumentList ->
      * 		Expression (, Expression)*
      */
-    private void pArgumentList(){
+    private ExprList parseArgumentList(){
     	if(verbose)
     		System.out.println("parseArgumentList");
+    	ExprList exprlist = new ExprList();
+    	Expression e;
     	//Expression
     	if(inExpressionStarterSet(currentToken.type)) {
-    		pExpression();
+    		e = parseExpression();
+    		exprlist.add(e);
     		while(currentToken.type == Token.COMMA){
     			acceptIt();
-    			pExpression();
+    			e = parseExpression();
+    			exprlist.add(e);
     		}
     	} else {
     		//Malformed Argument List
     		syntacticError("Malformed Argument list, expected Expression", null);
     	}
+		return exprlist;
     };
 
     /* Reference ->
      * 		BaseRef RefTail?
      */
-	private void pReference() {
+	private Reference parseReference() {
+		Reference r;
 		if(verbose)
 			System.out.println("parseReference");
 		// BaseRef
-		pBaseRef();
+		r = parseBaseRef();
 		if(inRefTailStarterSet(currentToken.type)) {
-			pRefTail();
-		} 	
+			return parseRefTail(r);
+		} else {
+			return r;
+		}
 	};
 	
 	/* BaseRef ->
 	 * 		this | id RefArrID?
 	 */
-    private void pBaseRef() {
+    private Reference parseBaseRef() {
     	if(verbose)
     		System.out.println("parseBaseReference");
     	switch(currentToken.type) {
     	case (Token.THIS):
+    		int thisstart = currentToken.position.start;
+    		int thisend;
     		acceptIt();
-    		break;
+    		thisend = currentToken.position.start;
+    		return new ThisRef(new SourcePosition(thisstart, thisend));
 		case (Token.ID):
+			int idstart = currentToken.position.start;
+			int idend;
+			String name = currentToken.spelling;
     		acceptIt();
+    		idend = currentToken.position.start;
+    		Identifier id = new Identifier(name, new SourcePosition(idstart, idend));
+    		IdRef rid = new IdRef(id, id.posn);
     		if(inRefArrIDStarterSet(currentToken.type)) {
-    			pRefArrID();
+    			return parseRefArrID(rid);
+    		} else {
+    			return rid;
     		}
-    		break;
     	default:
     		syntacticError("Malformed BaseReference\n"
     				+"\texpected 'this' or 'id', instead of", currentToken.spelling);
-    		break;
+    		// bad
+    		System.exit(4);
+    		return null;
     	}
     };
     
@@ -312,36 +379,53 @@ public class Parser {
      * 		[ Expression ]
      */
     //IndexedRef
-    private void pRefArrID() {
+    private IndexedRef parseRefArrID(Reference ref) {
+    	//rewind position to beginning of ref (really id)
+    	int irefstart = currentToken.position.start - currentToken.spelling.length();
+    	int irefend;
+    	Expression expr;
     	if(verbose)
     		System.out.println("parseRefArrID");
 		accept(Token.LBRACKET);
-		pExpression();
+		expr = parseExpression();
 		accept(Token.RBRACKET);
+		irefend = currentToken.position.start;
+		return new IndexedRef(ref, expr, new SourcePosition(irefstart,irefend));
 	}
     
     /* RefTail ->
      * 		. DotFollow RefTail?
      */
-	private void pRefTail(){
+	private Reference parseRefTail(Reference ref){
+		Reference r;
 		if(verbose)
 			System.out.println("parseReferenceTail");
 		accept(Token.DOT);
-		pDotFollow();
+		r = parseDotFollow();
 		if(inRefTailStarterSet(currentToken.type)) {
-			pRefTail();
+			return parseRefTail(r);
+		} else {
+			return r;
 		}
 	};
 	
 	/* DotFollow ->
 	 * 		id RefArrID?
 	 */
-    private void pDotFollow(){
+    private Reference parseDotFollow(){
+    	IdRef id;
     	if(verbose)
     		System.out.println("parseDotFollow");
+    	int idstart = currentToken.position.start;
+    	String name = currentToken.spelling;
     	accept(Token.ID);
+    	int idend = currentToken.position.start;
+    	Identifier i = new Identifier(name, new SourcePosition(idstart, idend));
+    	id = new IdRef(i, i.posn);
     	if(inRefArrIDStarterSet(currentToken.type)) {
-    		pRefArrID();
+    		return parseRefArrID(id);
+    	} else {
+    		return new QualifiedRef(id, i, id.posn);
     	}
     };
     
@@ -351,161 +435,285 @@ public class Parser {
      *   |	Reference	SmtRefTail
      *   |	if ( Expression ) Statement (else Statement)?
      *   |	while ( Expression ) Statement
-     *   |  Reference ExpRefTail? ExpTail?
+     *   |  Reference ExparseRefTail? ExpTail?
      */
-    private void newPStatement() {
+    private Statement parseStatement() {
     	if(verbose)
-    		System.out.println("newPStatement");
+    		System.out.println("parseStatement");
     	switch(currentToken.type) {
     	// { Statement* }
     	case(Token.LCURLY):
+    		StatementList bsl = new StatementList();
     		acceptIt();
     		while(inStatementStarterSet(currentToken.type))
-    			newPStatement();
+    			bsl.add(parseStatement());
     		accept(Token.RCURLY);
-    		break;
+    		return new BlockStmt(bsl, currentToken.position);
     	// Derivations starting with ID
     	case(Token.ID):
+    		int ididstart = currentToken.position.start,iddeclstart = currentToken.position.start;
+    		int ididend, iddeclend;
+    		Identifier id;
+    		IdRef iref;
+    		Expression exp;
+    		VarDecl vardec;
+    		String name = currentToken.spelling;
     		acceptIt();
-    		//Derivatons starting with ID [
+    		//Derivations starting with ID [
     		if(currentToken.type == Token.LBRACKET) {
     			acceptIt();
+    			//VarDecl statement
+    			//Type id = Expression ;
     			//id[] id = Expression ;
     			if(currentToken.type == Token.RBRACKET) {
     				acceptIt();
+    				ididend = currentToken.position.start;
+    				SourcePosition posn = new SourcePosition(ididstart, ididend);
+    				ArrayType intarrtype = new ArrayType(new BaseType(TypeKind.INT, posn), posn);
     				accept(Token.ID);
     				accept(Token.ASSIGN);
-    				pExpression();
+    				exp = parseExpression();
     				accept(Token.SEMICOLON);
+    				iddeclend = currentToken.position.start;
+    				vardec = new VarDecl(intarrtype, name, intarrtype.posn);
+    				return new VarDeclStmt(vardec, exp, new SourcePosition(iddeclstart, iddeclend));
+    			// Reference SmtRefTail
     			// id RefArrID RefTail? SmtRefTail
     			} else {
-    				pExpression();
+    				exp = parseExpression();
     				accept(Token.RBRACKET);
+    				ididend = currentToken.position.start;
+    				id = new Identifier(name, new SourcePosition(ididstart, ididend));
+    				iref = new IdRef(id, id.posn);
+    				
+    				//Qualified Ref
     				if(inRefTailStarterSet(currentToken.type)) {
-    					pRefTail();
+    					Reference qrr;
+    					QualifiedRef qualref;
+    					ididend = currentToken.position.start;
+    					id = new Identifier(name, new SourcePosition(ididstart, ididend));
+    					iref = new IdRef(id, id.posn);
+    					qrr = parseRefTail(iref);
+    					qualref = new QualifiedRef(qrr, id, iref.posn);
+    					return parseSmtRefTail(qualref);
+    					//return parseSmtRefTail(qr);
+    				} else {
+    					//AssignStatement || Call Statement
+    					return parseSmtRefTail(iref);
     				}
-    				pSmtRefTail();
     			}
     		// Reference SmtRefTail
-    		// id RefTail? SmtRefTail
+    		// id RefTail SmtRefTail
     		} else if(inRefTailStarterSet(currentToken.type)) {
-    			pRefTail();
-				pSmtRefTail();
+    			QualifiedRef qual;
+    			Reference qra;
+    			ididend = currentToken.position.start;
+    			id = new Identifier(name, new SourcePosition(ididstart, ididend));
+    			iref = new IdRef(id, id.posn);
+    			qra = parseRefTail(iref);
+    			qual = new QualifiedRef(qra, id, iref.posn);
+				return parseSmtRefTail(qual);
+			// Type id = Expression ;
     		// id id = Expression ;
     		} else if(currentToken.type == Token.ID) {
     			acceptIt();
+    			ididend = currentToken.position.start;
+    			SourcePosition posn = new SourcePosition(ididstart, ididend);
+    			id = new Identifier(name, posn);
+    			ClassType classtype = new ClassType(id, id.posn);
     			accept(Token.ASSIGN);
-    			pExpression();
+    			exp = parseExpression();
     			accept(Token.SEMICOLON);
+    			iddeclend = currentToken.position.start;
+    			vardec = new VarDecl(classtype, name, classtype.posn);
+    			return new VarDeclStmt(vardec, exp, new SourcePosition(iddeclstart, iddeclend));
+    		//Assign statement
+    		// Reference SmtRefTail
     		// id = Expression;
     		} else if(currentToken.type == Token.ASSIGN) {
+    			ididend = currentToken.position.start;
+    			id = new Identifier(name, new SourcePosition(ididstart, ididend));
+    			iref = new IdRef(id, id.posn);
     			acceptIt();
-    			pExpression();
+    			exp = parseExpression();
     			accept(Token.SEMICOLON);
+    			iddeclend = currentToken.position.start;
+    			return new AssignStmt(iref, exp, new SourcePosition(iddeclstart, iddeclend));
+    		// Reference SmtRefTail
     		// id ( ArgumentList? ) ;
     		} else if(currentToken.type == Token.LPAREN) {
+    			ExprList exprlist = new ExprList();
+    			ididend = currentToken.position.start;
+    			id = new Identifier(name, new SourcePosition(ididstart, ididend));
+    			iref = new IdRef(id, id.posn);
     			acceptIt();
     			if(inArgumentListStarterSet(currentToken.type))
-    				pArgumentList();
+    				exprlist = parseArgumentList();
     			accept(Token.RPAREN);
     			accept(Token.SEMICOLON);
+    			iddeclend = currentToken.position.start;
+    			return new CallStmt(iref, exprlist, new SourcePosition(iddeclstart, iddeclend));
     		}
-    		break;
     	/* 
     	 * Variable decls and assignment
     	 */
+    	// Type id = Expression ;
     	// int id = Expression;
     	// int[] id = Expression;
     	case(Token.INT):
+    		String intname;
+    		Type integer;
+    		Expression intexp;
+    		BaseType intbt;
+    		VarDecl intvd;
+    		int inttypestart = currentToken.position.start;
+    		int inttypeend;
+    		int intdeclend;
     		acceptIt();
+    		
     		if(currentToken.type == Token.LBRACKET) {
     			acceptIt();
     			accept(Token.RBRACKET);
+    			inttypeend = currentToken.position.start;
+    			intbt = new BaseType(TypeKind.INT, new SourcePosition(inttypestart, inttypeend));
+    			integer = new ArrayType(intbt, intbt.posn);
+    		} else {
+    			inttypeend = currentToken.position.start;
+    			integer = new BaseType(TypeKind.INT, new SourcePosition(inttypestart, inttypeend));
     		}
+    		intname = currentToken.spelling;
     		accept(Token.ID);
     		accept(Token.ASSIGN);
-    		pExpression();
+    		intexp = parseExpression();
     		accept(Token.SEMICOLON);
-    		break;
+    		intdeclend = currentToken.position.start;
+    		intvd = new VarDecl(integer, intname, new SourcePosition(inttypestart, intdeclend));
+    		return new VarDeclStmt(intvd, intexp, intvd.posn);
     	//boolean id = Expression;
     	//void id = Expression;
     	case(Token.BOOLEAN):
     	case(Token.VOID):
-    		acceptIt();
+    		String bvtypename;
+    		BaseType bv;
+    		Expression bvexp;
+    		VarDecl bvvd;
+    		SourcePosition bvtypepos = new SourcePosition();
+    		int bvtypestart = currentToken.position.start, bvdeclstart = currentToken.position.start;
+    		int bvtypeend, bvdeclend;
+    		if(currentToken.type == Token.BOOLEAN) {
+    			acceptIt();
+    			bvtypeend = currentToken.position.start;
+    			bvtypepos.start = bvtypestart;
+    			bvtypepos.finish = bvtypeend;
+    			bv = new BaseType(TypeKind.BOOLEAN, bvtypepos);
+    		} else {
+    			acceptIt();
+    			bvtypeend = currentToken.position.start;
+    			bvtypepos.start = bvtypestart;
+    			bvtypepos.finish = bvtypeend;
+    			bv = new BaseType(TypeKind.VOID, bvtypepos);
+    		}
+    		bvtypename = currentToken.spelling;
     		accept(Token.ID);
     		accept(Token.ASSIGN);
-    		pExpression();
+    		bvexp = parseExpression();
     		accept(Token.SEMICOLON);
-    		break;
+    		bvdeclend = currentToken.position.start;
+    		bvvd = new VarDecl(bv, bvtypename, new SourcePosition(bvdeclstart, bvdeclend));
+    		return new VarDeclStmt(bvvd, bvexp, bvvd.posn);
     	// Reference SmtRefTail
     	// this RefTail? SmtRefTail
     	case(Token.THIS):
+    		Reference qr;
+    		int startThis = currentToken.position.start;
     		acceptIt();
-    		if(inRefTailStarterSet(currentToken.type))
-    			pRefTail();
-			pSmtRefTail();
-    		break;
+    		int endThis = currentToken.position.finish;
+    		ThisRef tr = new ThisRef(new SourcePosition(startThis, endThis));
+    		if(inRefTailStarterSet(currentToken.type)) {
+    			qr = parseRefTail(tr);
+    			return parseSmtRefTail(qr);
+    		} else {
+    				return parseSmtRefTail(tr);
+    		}
     	
     	// if ( Expression ) Statement (else Statement)?
     	case(Token.IF):
+    		Expression ifexp;
+    		Statement ifstmt;
+    		
     		acceptIt();
     		accept(Token.LPAREN);
-    		pExpression();
+    		ifexp = parseExpression();
     		accept(Token.RPAREN);
-    		newPStatement();
+    		ifstmt = parseStatement();
     		if(currentToken.type == Token.ELSE) {
+    			Statement e;
     			acceptIt();
-    			newPStatement();
+    			e = parseStatement();
+    			return new IfStmt(ifexp, ifstmt, e, currentToken.position);
+    		} else {
+    			return new IfStmt(ifexp, ifstmt, currentToken.position);
     		}
-    		break;
     	// while ( Expression ) Statement
     	case(Token.WHILE):
+    		int start = currentToken.position.start;
+    		int end;
+    		Expression whilexp;
+    		Statement whilestmt;
+    		
     		acceptIt();
     		accept(Token.LPAREN);
-    		pExpression();
+    		whilexp = parseExpression();
     		accept(Token.RPAREN);
-    		newPStatement();
-    		break;
+    		whilestmt = parseStatement();
+    		end = currentToken.position.start;
+    		return new WhileStmt(whilexp, whilestmt, new SourcePosition(start, end));
     	default:
     		syntacticError("Malformed Statment.\n"
     				+ "\t error with token ", currentToken.spelling);
-    		break;
+    		return null;
     	}
     }
     /* SmtRefTail ->
      * 		= Expression ;
      * 	  | ( ArgumentList? ) ;
      */
-    private void pSmtRefTail() {
+    private Statement parseSmtRefTail(Reference ref) {
     	if(verbose)
     		System.out.println("parseSmtRefTail");
+    	Expression reftailexp;
+    	int strt = currentToken.position.start - currentToken.spelling.length();
+    	int assignend, callend;
     	switch(currentToken.type) {
     	// = Expression ;
     	case(Token.ASSIGN):
     		acceptIt();
-    		pExpression();
+    		reftailexp = parseExpression();
     		accept(Token.SEMICOLON);
-    		break;
-    	// Handles a derivation from Statement
-    	// and a derivation from Expression
-    	// ( ArgumentList? ) ExpTail?
+    		assignend = currentToken.position.start;
+    		return new AssignStmt(ref, reftailexp, new SourcePosition(strt,assignend));
     	// ( ArgumentList? ) ;
     	case(Token.LPAREN):
+    		ExprList args = new ExprList();
     		acceptIt();
     		if(inArgumentListStarterSet(currentToken.type)) {
-    			pArgumentList();
+    			args = parseArgumentList();
     		}
     		accept(Token.RPAREN);
     		accept(Token.SEMICOLON);
-    		break;
+    		callend = currentToken.position.start;
+    		return new CallStmt(ref, args, new SourcePosition(strt,callend));
     	default:
     		syntacticError("Malformed SmtRefTail\n"
     				+ "\tExpected '=' or '(', instead of ", currentToken.spelling);
+    		//bad
+    		System.exit(4);
+    		return null;
     	}
 	}
 
     /* Expression ->
-     * 		Reference ExpRefTail? ExpTail?
+     * 		Reference ExparseRefTail? ExpTail?
      *    | unop Expression ExpTail?
      *    | ( Expression ) ExpTail?
      *    | num ExpTail?
@@ -513,58 +721,98 @@ public class Parser {
      *    | false
      *    | new ExpDecl ExpTail? // Maybe no ExpTail here
      */
-    private void pExpression(){
+    private Expression parseExpression(){
     	if(verbose)
     		System.out.println("parseExpression");
-    	// Reference ExpRefTail? ExpTail?
+    	// Reference ExparseRefTail? ExpTail?
     	if(inReferenceStarterSet(currentToken.type)) {
-    		pReference();
-    		if(inExpRefTailStarterSet(currentToken.type)) {
-    			pExpRefTail();
+    		Reference r1;
+    		Expression e1;
+    		Expression e2;
+    		RefExpr rxp;
+    		r1 = parseReference();
+    		rxp = new RefExpr(r1, r1.posn);
+    		if(inExparseRefTailStarterSet(currentToken.type)) {
+    			e1 = parseExparseRefTail(r1);
+    		} else {
+    			e1 = rxp;
     		}
     		if(inExpTailStarterSet(currentToken.type)) {
-    			pExpTail();
-    		} 
+    			e2 = parseExpTail(e1);
+    		} else {
+    			e2 = e1;
+    		}
+    		return e2;
     	// unop Expression ExpTail?
     	} else if(currentToken.type == Token.MINUS || 
-    			currentToken.type == Token.NOT || currentToken.type == Token.DOT) {
+    			currentToken.type == Token.NOT) {
+    		Expression e1, e2;
+    		Token op = currentToken;
+    		Operator o;
+    		int opstart, opend, exprend;
+    		opstart = currentToken.position.start;
     		acceptIt();
-    		pExpression();
+    		opend = currentToken.position.start;
+    		o = new Operator(op, new SourcePosition(opstart, opend));
+    		e1 = parseExpression();
+    		exprend = currentToken.position.start;
     		if(inExpTailStarterSet(currentToken.type)) {
-    			pExpTail();
+    			e2 = parseExpTail(e1);
+    		} else {
+    			e2 = e1;
     		}
+    		return new UnaryExpr(o, e2, new SourcePosition(opstart, exprend));
     	// ( Expression ) ExpTail?
     	} else if(currentToken.type == Token.LPAREN) {
+    		Expression e;
     		acceptIt();
-    		pExpression();
+    		e = parseExpression();
     		accept(Token.LPAREN);
     		if(inExpTailStarterSet(currentToken.type)){
-    			pExpTail();
+    			return parseExpTail(e);
+    		} else {
+    			return e;
     		}
     	// num ExpTail?
     	} else if(currentToken.type == Token.INTLITERAL){
+    		IntLiteral numlit;
+    		String name = currentToken.spelling;
+    		int litstart, litstop;
+    		litstart = currentToken.position.start;
     		acceptIt();
+    		litstop = currentToken.position.start;
+    		numlit = new IntLiteral(name, new SourcePosition(litstart, litstop));
     		if(inExpTailStarterSet(currentToken.type)){
-    			pExpTail();
+    			return parseExpTail(new LiteralExpr(numlit, numlit.posn));
+    		} else {
+    			return new LiteralExpr(numlit, numlit.posn);
     		}
     	// true | false
     	} else if(currentToken.type == Token.TRUE ||
     			currentToken.type == Token.FALSE) {
+    		BooleanLiteral bl;
+    		int bstart, bstop;
+    		String name = currentToken.spelling;
+    		bstart = currentToken.position.start;
     		acceptIt();
-    		if(inExpTailStarterSet(currentToken.type)) {
-    			pExpTail();
-    		}
+    		bstop = currentToken.position.start;
+    		bl = new BooleanLiteral(name, new SourcePosition(bstart, bstop));
+    		return new LiteralExpr(bl, bl.posn);
     	// new ExpDecl ExpTail? // Maybe no ExpTail here
     	} else if(currentToken.type == Token.NEW) {
+    		Expression e;
     		acceptIt();
-    		pExpDecl();
+    		e = parseExpDecl();
     		if(inExpTailStarterSet(currentToken.type)) {
-    			pExpTail();
+    			return parseExpTail(e);
+    		} else {
+    			return e;
     		}
     	} else {
     		syntacticError("Malformed Expression\n"
     				+ "\t epxression cannot begin with ", currentToken.spelling);
     	}
+		return null;
     };
     
     /* ExpDecl ->
@@ -572,59 +820,109 @@ public class Parser {
      * 	  | id
      * 		() | [ Expression ]
      */
-    private void pExpDecl() {
+    private NewExpr parseExpDecl() {
+    	int nwxpstart, nwxpstop;
+    	nwxpstart = currentToken.position.start;
     	if(verbose)
     		System.out.println("parseExpDecl");
+    	// NewArrayExpr
     	// int [ Expression ]
     	switch(currentToken.type) {
     	case(Token.INT):
+    		BaseType inttype;
+    		Expression intexp;
+    		int stint, stopint;
+    		stint = currentToken.position.start;
     		acceptIt();
+    		stopint = currentToken.position.start;
+    		inttype = new BaseType(TypeKind.INT, new SourcePosition(stint, stopint));
     		accept(Token.LBRACKET);
-    		pExpression();
+    		intexp = parseExpression();
     		accept(Token.RBRACKET);
-    		break;
+    		nwxpstop = currentToken.position.start;
+    		return new NewArrayExpr(inttype, intexp, new SourcePosition(nwxpstart, nwxpstop));
+    	// NewObjectExpr
     	// id ( () | [ Expression ] )
     	case(Token.ID):
+    		ClassType ct;
+    		Identifier ci;
+    		String cname = currentToken.spelling;
+    		int ctstart, ctstop, expstop;
+    		ctstart = currentToken.position.start;
     		acceptIt();
+    		ctstop = currentToken.position.start;
+    		ci = new Identifier(cname, new SourcePosition(ctstart, ctstop));
+    		ct = new ClassType(ci, ci.posn);
+    		// NewObjectExpr
     		if(currentToken.type == Token.LPAREN) {
     			acceptIt();
     			accept(Token.RPAREN);
+    			expstop = currentToken.position.start;
+    			return new NewObjectExpr(ct, new SourcePosition(ctstart, expstop));
+    		// NewArrayExpr
     		} else if(currentToken.type == Token.LBRACKET){
+    			Expression e;
     			acceptIt();
-    			pExpression();
+    			e = parseExpression();
     			accept(Token.RBRACKET);
+    			expstop = currentToken.position.start;
+    			return new NewArrayExpr(ct, e, new SourcePosition(ctstart, expstop));
     		} else {
     			syntacticError("Malformed id\n"
     				+ "\tid cannot be followed by ", currentToken.spelling);
+    			//bad
+    			System.exit(4);
+    			return null;
     		}
+    	default:
+    		syntacticError("Malformed id\n"
+    				+ "\tid cannot be followed by ", currentToken.spelling);
+    		//bad
+    		System.exit(4);
+    		return null;
     	}	
 	}
 
-    /* ExpRefTail ->
+    /* ExparseRefTail ->
      * 		( ArgumentList? )
      */
-	private void pExpRefTail() {
+	private CallExpr parseExparseRefTail(Reference r) {
+		ExprList el = new ExprList();
+		int cst, stop;
+		cst = currentToken.position.start;
 		if(verbose)
-			System.out.println("parseExpRefTail");
+			System.out.println("parseExparseRefTail");
 		accept(Token.LPAREN);
 		if(inArgumentListStarterSet(currentToken.type)) {
-			pArgumentList();
+			el = parseArgumentList();
 		}
 		accept(Token.RPAREN);
+		stop = currentToken.position.start;
+		return new CallExpr(r, el, new SourcePosition(cst, stop));
 	}
 
 	/* ExpTail ->
 	 * 		binop Expression ExpTail?
 	 */
-	private void pExpTail() {
+	private BinaryExpr parseExpTail(Expression e1) {
+		Operator o;
+		Token tk;
+		Expression e2;
+		int estart, estop;
+		estart = currentToken.position.start - currentToken.spelling.length();
+		int ostart, ostop;
 		if(verbose)
 			System.out.println("parseExpTail");
-		if(isBinop(currentToken.type))
-			acceptIt();
-		pExpression();
-		/*if(inExpTailStarterSet(currentToken.type)) {
-			pExpTail();
-		}*/
+		//if(isBinop(currentToken.type)) {
+		ostart = currentToken.position.start;
+		tk = currentToken;
+		acceptIt();
+		ostop = currentToken.position.start;
+		o = new Operator(tk, new SourcePosition(ostart, ostop));
+		e2 = parseExpression();
+		estop = currentToken.position.start;
+		return new BinaryExpr(o, e1, e2, new SourcePosition(estart, estop));
+		//}
 	}
 
 	private boolean inDeclaratorStarterSet(int type) {
@@ -682,7 +980,7 @@ public class Parser {
 	private boolean inReferenceStarterSet(int type) {
 		return (inBaseRefStarterSet(type) || type == Token.ID);
 	}
-	private boolean inExpRefTailStarterSet(int type) {
+	private boolean inExparseRefTailStarterSet(int type) {
 		return (type == Token.LPAREN);
 	}
 
