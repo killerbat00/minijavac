@@ -788,7 +788,7 @@ public class Parser {
     		} else {
     			return new LiteralExpr(numlit, numlit.posn);
     		}
-    	// true | false
+    	// true | false ExpTail?
     	} else if(currentToken.type == Token.TRUE ||
     			currentToken.type == Token.FALSE) {
     		BooleanLiteral bl;
@@ -798,7 +798,11 @@ public class Parser {
     		acceptIt();
     		bstop = currentToken.position.start;
     		bl = new BooleanLiteral(name, new SourcePosition(bstart, bstop));
-    		return new LiteralExpr(bl, bl.posn);
+    		if(inExpTailStarterSet(currentToken.type)) {
+    			return parseExpTail(new LiteralExpr(bl, bl.posn));
+    		} else {
+    			return new LiteralExpr(bl, bl.posn);
+    		}
     	// new ExpDecl ExpTail? // Maybe no ExpTail here
     	} else if(currentToken.type == Token.NEW) {
     		Expression e;
