@@ -403,12 +403,14 @@ public class Parser {
 					}
     		} else if(currentToken.type == Token.LBRACKET) {
     			acceptIt();
-    			if(currentToken.type == Token.ID) {
-    				//acceptIt();
-    				if(inExpressionStarterSet(currentToken.type)) {
+    			//[num|id].id
+    			if(currentToken.type == Token.ID || currentToken.type == Token.INTLITERAL) {
+    				if(inExpressionStarterSet(currentToken.type))
     					pExpression();
-    				}
+    				
     				accept(Token.RBRACKET);
+    				if(currentToken.type == Token.DOT)
+    					pRefTail();
     				try {
 						pSmtRefTail();
 					} catch (Exception e) {
@@ -526,7 +528,6 @@ public class Parser {
     	// unop Expression ExpTail?
     	} else if(currentToken.type == Token.MINUS || 
     			currentToken.type == Token.NOT || currentToken.type == Token.DOT) {
-    		System.out.println("unop");
     		acceptIt();
     		pExpression();
     		if(inExpTailStarterSet(currentToken.type)) {
