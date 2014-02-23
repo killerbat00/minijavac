@@ -358,6 +358,7 @@ public class Parser {
      *   |	Reference	SmtRefTail
      *   |	if ( Expression ) Statement (else Statement)?
      *   |	while ( Expression ) Statement
+     *   |  Reference ExpRefTail? ExpTail?
      */
     private void newPStatement() {
     	if(verbose)
@@ -396,7 +397,8 @@ public class Parser {
 						e.printStackTrace();
 					}
     			}
-    		//id RefTail? SmtRefTail
+    		// Reference SmtRefTail
+    		// id RefTail? SmtRefTail
     		} else if(inRefTailStarterSet(currentToken.type)) {
     			pRefTail();
     			try {
@@ -451,6 +453,7 @@ public class Parser {
     		pExpression();
     		accept(Token.SEMICOLON);
     		break;
+    	// Reference SmtRefTail
     	// this RefTail? SmtRefTail
     	case(Token.THIS):
     		acceptIt();
@@ -504,6 +507,9 @@ public class Parser {
     		pExpression();
     		accept(Token.SEMICOLON);
     		break;
+    	// Handles a derivation from Statement
+    	// and a derivation from Expression
+    	// ( ArgumentList? ) ExpTail?
     	// ( ArgumentList? ) ;
     	case(Token.LPAREN):
     		acceptIt();
@@ -511,7 +517,12 @@ public class Parser {
     			pArgumentList();
     		}
     		accept(Token.RPAREN);
-    		accept(Token.SEMICOLON);
+    		if(currentToken.type == Token.SEMICOLON) {
+    			acceptIt();
+    		//( ArgumentList? ) ExpTail?
+    		} else if(inExpTailStarterSet(currentToken.type)) {
+    			pExpTail();
+    		}
     		break;
     	default:
     		throw new Exception("Malformed SmtRefTail\n"
