@@ -61,7 +61,7 @@ public class Parser {
         }
     }
 
-    void acceptIt() throws Error{
+    void acceptIt() {
     	if(verbose)
     		System.out.println("AcceptIt: " + currentToken.spelling);
         previousTokenPosition = currentToken.position;
@@ -277,15 +277,11 @@ public class Parser {
     /* Reference ->
      * 		BaseRef RefTail?
      */
-	private void pReference() throws Exception{
+	private void pReference() {
 		if(verbose)
 			System.out.println("parseReference");
 		// BaseRef
-		try {
-			pBaseRef();
-		} catch(Exception e) {
-			throw e;
-		}
+		pBaseRef();
 		if(inRefTailStarterSet(currentToken.type)) {
 			pRefTail();
 		} 
@@ -295,7 +291,7 @@ public class Parser {
 	/* BaseRef ->
 	 * 		this | id RefArrID?
 	 */
-    private void pBaseRef() throws Exception {
+    private void pBaseRef() {
     	if(verbose)
     		System.out.println("parseBaseReference");
     	switch(currentToken.type) {
@@ -309,8 +305,8 @@ public class Parser {
     		}
     		break;
     	default:
-    		throw new Exception("Malformed BaseReference]n"
-    				+ "expected 'this' or id");
+    		syntacticError("Malformed BaseReference\n"
+    				+"\texpected 'this' or 'id', instead of", currentToken.spelling);
     	}
     };
     
@@ -391,22 +387,13 @@ public class Parser {
     				if(inRefTailStarterSet(currentToken.type)) {
     					pRefTail();
     				}
-    				try {
-						pSmtRefTail();
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
+    				pSmtRefTail();
     			}
     		// Reference SmtRefTail
     		// id RefTail? SmtRefTail
     		} else if(inRefTailStarterSet(currentToken.type)) {
     			pRefTail();
-    			try {
-					pSmtRefTail();
-				} catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				pSmtRefTail();
     		// id id = Expression ;
     		} else if(currentToken.type == Token.ID) {
     			acceptIt();
@@ -459,12 +446,7 @@ public class Parser {
     		acceptIt();
     		if(inRefTailStarterSet(currentToken.type))
     			pRefTail();
-    		try {
-				pSmtRefTail();
-			} catch (Exception e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
+			pSmtRefTail();
     		break;
     	
     	// if ( Expression ) Statement (else Statement)?
@@ -497,7 +479,7 @@ public class Parser {
      * 		= Expression ;
      * 	  | ( ArgumentList? ) ;
      */
-    private void pSmtRefTail() throws Exception {
+    private void pSmtRefTail() {
     	if(verbose)
     		System.out.println("parseSmtRefTail");
     	switch(currentToken.type) {
@@ -517,16 +499,11 @@ public class Parser {
     			pArgumentList();
     		}
     		accept(Token.RPAREN);
-    		if(currentToken.type == Token.SEMICOLON) {
-    			acceptIt();
-    		//( ArgumentList? ) ExpTail?
-    		} else if(inExpTailStarterSet(currentToken.type)) {
-    			pExpTail();
-    		}
+    		accept(Token.SEMICOLON);
     		break;
     	default:
-    		throw new Exception("Malformed SmtRefTail\n"
-    				+ "\tExpected '=' or '(', instead of ");
+    		syntacticError("Malformed SmtRefTail\n"
+    				+ "\tExpected '=' or '(', instead of ", currentToken.spelling);
     	}
 	}
 
@@ -544,11 +521,7 @@ public class Parser {
     		System.out.println("parseExpression");
     	// Reference ExpRefTail? ExpTail?
     	if(inReferenceStarterSet(currentToken.type)) {
-    		try {
-				pReference();
-			} catch (Exception e) {
-				syntacticError(e.toString(), currentToken.spelling);
-			}
+    		pReference();
     		if(inExpRefTailStarterSet(currentToken.type)) {
     			pExpRefTail();
     		}
@@ -591,12 +564,6 @@ public class Parser {
     		if(inExpTailStarterSet(currentToken.type)) {
     			pExpTail();
     		}
-    	/*
-    	 * else if(currentToken.type == Token.NEW) {
-    	 *	acceptIt();
-    	 *	pExpDecl();
-    	 *}
-    	 */
     	} else {
     		syntacticError("Malformed Expression\n"
     				+ "\t epxression cannot begin with ", currentToken.spelling);
