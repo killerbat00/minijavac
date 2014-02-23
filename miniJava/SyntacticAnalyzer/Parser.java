@@ -15,6 +15,7 @@ import miniJava.*;
 public class Parser {
     private Scanner scanner;
     private Token currentToken;
+    private Token previousToken;
     private ErrorReporter errorReporter;
     private SourcePosition previousTokenPosition;
     private boolean verbose = false;
@@ -49,6 +50,7 @@ public class Parser {
         		System.out.println(msg);
         	}
             previousTokenPosition = currentToken.position;
+            previousToken = currentToken;
             currentToken = scanner.scan();
         } else {
         	//Sometimes tokenExpected is whitespace
@@ -63,6 +65,7 @@ public class Parser {
     	if(verbose)
     		System.out.println("AcceptIt: " + currentToken.spelling);
         previousTokenPosition = currentToken.position;
+        previousToken = currentToken;
         currentToken = scanner.scan();
     }
 
@@ -158,7 +161,7 @@ public class Parser {
     	
     	// Statement*
     	while (inStatementStarterSet(currentToken.type)) {
-    		pStatement();
+    		newPStatement();
     	}
     	
     	// return statement
@@ -356,121 +359,137 @@ public class Parser {
      *   |	if ( Expression ) Statement (else Statement)?
      *   |	while ( Expression ) Statement
      */
-    private void pStatement(){
+    private void newPStatement() {
     	if(verbose)
-    		System.out.println("parseStatement");
+    		System.out.println("newPStatement");
+    	switch(currentToken.type) {
     	// { Statement* }
-    	if(currentToken.type == Token.LCURLY){
+    	case(Token.LCURLY):
     		acceptIt();
-    		while(inStatementStarterSet(currentToken.type)) {
-    			pStatement();
-    		}
+    		while(inStatementStarterSet(currentToken.type))
+    			newPStatement();
     		accept(Token.RCURLY);
-    	} else if(currentToken.type == Token.ID) {
+    		break;
+    	// Derivations starting with ID
+    	case(Token.ID):
     		acceptIt();
-    		// id refTail (id.xxx)
-    		if(currentToken.type == Token.DOT) {
-    			pRefTail();
-    		}
-    		// id( ArgumentList? );
-    		if(currentToken.type == Token.LPAREN) {
+    		//Derivatons starting with ID [
+    		if(currentToken.type == Token.LBRACKET) {
     			acceptIt();
-    			if(inArgumentListStarterSet(currentToken.type)) {
-    				pArgumentList();
+    			//id[] id = Expression ;
+    			if(currentToken.type == Token.RBRACKET) {
+    				acceptIt();
+    				accept(Token.ID);
+    				accept(Token.ASSIGN);
+    				pExpression();
+    				accept(Token.SEMICOLON);
+    			// id RefArrID RefTail? SmtRefTail
+    			} else {
+    				pExpression();
+    				accept(Token.RBRACKET);
+    				if(inRefTailStarterSet(currentToken.type)) {
+    					pRefTail();
+    				}
+    				try {
+						pSmtRefTail();
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
     			}
-    			accept(Token.RPAREN);
-    			accept(Token.SEMICOLON);
-    		// id SmtRefTail
-    		} else if(currentToken.type == Token.ASSIGN) {
+    		//id RefTail? SmtRefTail
+    		} else if(inRefTailStarterSet(currentToken.type)) {
+    			pRefTail();
     			try {
 					pSmtRefTail();
 				} catch (Exception e) {
-					syntacticError(e.toString(), currentToken.spelling);
+					// TODO Auto-generated catch block
+					e.printStackTrace();
 				}
-    		// Type id = Expression ;
+    		// id id = Expression ;
     		} else if(currentToken.type == Token.ID) {
     			acceptIt();
     			accept(Token.ASSIGN);
     			pExpression();
     			accept(Token.SEMICOLON);
-    		// Reference SmtRefTail
-    		} else if(currentToken.type == Token.THIS ||
-    			currentToken.type == Token.ID) {
-    				try {
-						pBaseRef();
-					} catch (Exception e) {
-						syntacticError(e.toString(), currentToken.spelling);
-					}
-    		} else if(currentToken.type == Token.LBRACKET) {
+    		// id = Expression;
+    		} else if(currentToken.type == Token.ASSIGN) {
     			acceptIt();
-    			//[num|id].id
-    			if(currentToken.type == Token.ID || currentToken.type == Token.INTLITERAL) {
-    				if(inExpressionStarterSet(currentToken.type))
-    					pExpression();
-    				
-    				accept(Token.RBRACKET);
-    				if(currentToken.type == Token.DOT)
-    					pRefTail();
-    				try {
-						pSmtRefTail();
-					} catch (Exception e) {
-						syntacticError(e.toString(), currentToken.spelling);
-					}
-    			// Test [ ] = Exp --empty brackets
-    			} else {
-    				accept(Token.RBRACKET);
-    				accept(Token.ID);
-    				accept(Token.ASSIGN);
-    				pExpression();
-    				accept(Token.SEMICOLON);
-    			}
-    		} else {
-    			syntacticError("err", currentToken.spelling);
+    			pExpression();
+    			accept(Token.SEMICOLON);
+    		// id ( ArgumentList? ) ;
+    		} else if(currentToken.type == Token.LPAREN) {
+    			acceptIt();
+    			if(inArgumentListStarterSet(currentToken.type))
+    				pArgumentList();
+    			accept(Token.RPAREN);
+    			accept(Token.SEMICOLON);
     		}
-    	// Type id = Expression ;
-    	} else if(inTypeStarterSet(currentToken.type)) {
-    		pType();
-    		if(currentToken.type == Token.ID)
-    			accept(Token.ID);
+    		break;
+    	/* 
+    	 * Variable decls and assignment
+    	 */
+    	// int id = Expression;
+    	// int[] id = Expression;
+    	case(Token.INT):
+    		acceptIt();
+    		if(currentToken.type == Token.LBRACKET) {
+    			acceptIt();
+    			accept(Token.RBRACKET);
+    		}
+    		accept(Token.ID);
     		accept(Token.ASSIGN);
     		pExpression();
     		accept(Token.SEMICOLON);
-    	//Reference SmtRefTail
-    	} else if(inReferenceStarterSet(currentToken.type)) {
+    		break;
+    	//boolean id = Expression;
+    	//void id = Expression;
+    	case(Token.BOOLEAN):
+    	case(Token.VOID):
+    		acceptIt();
+    		accept(Token.ID);
+    		accept(Token.ASSIGN);
+    		pExpression();
+    		accept(Token.SEMICOLON);
+    		break;
+    	// this RefTail? SmtRefTail
+    	case(Token.THIS):
+    		acceptIt();
+    		if(inRefTailStarterSet(currentToken.type))
+    			pRefTail();
     		try {
-				pReference();
+				pSmtRefTail();
 			} catch (Exception e) {
-				syntacticError(e.toString(), currentToken.spelling);
+				// TODO Auto-generated catch block
+				e.printStackTrace();
 			}
-    		try {
-    			pSmtRefTail();
-    		} catch (Exception e) {
-    			syntacticError(e.toString(), currentToken.spelling);
-    		}
+    		break;
+    	
     	// if ( Expression ) Statement (else Statement)?
-    	 }  else if(currentToken.type == Token.IF){
+    	case(Token.IF):
     		acceptIt();
     		accept(Token.LPAREN);
     		pExpression();
     		accept(Token.RPAREN);
-    		pStatement();
+    		newPStatement();
     		if(currentToken.type == Token.ELSE) {
     			acceptIt();
-    			pStatement();
+    			newPStatement();
     		}
+    		break;
     	// while ( Expression ) Statement
-    	} else if(currentToken.type == Token.WHILE) {
+    	case(Token.WHILE):
     		acceptIt();
     		accept(Token.LPAREN);
     		pExpression();
     		accept(Token.RPAREN);
-    		pStatement();
-    	} else {
-    		syntacticError("Malformed Statement\n " +
-    					"\tillegal character ", currentToken.spelling);
+    		newPStatement();
+    		break;
+    	default:
+    		syntacticError("Malformed Statment.\n"
+    				+ "\t error with token ", currentToken.spelling);
+    		break;
     	}
     }
-    	
     /* SmtRefTail ->
      * 		= Expression ;
      * 	  | ( ArgumentList? ) ;
