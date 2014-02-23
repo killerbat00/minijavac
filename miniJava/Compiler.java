@@ -10,6 +10,8 @@
  */
 package miniJava;
 
+import miniJava.AbstractSyntaxTrees.*;
+import miniJava.AbstractSyntaxTrees.Package;
 import miniJava.SyntacticAnalyzer.Parser;
 import miniJava.SyntacticAnalyzer.Scanner;
 import miniJava.SyntacticAnalyzer.SourceFile;
@@ -29,19 +31,25 @@ public class Compiler {
 		}
 	}
 	
-	static boolean compile(String filename) {
+	//At this point, we're returning an AST
+	static Package compile(String filename) {
+		Package ast;
 		reporter = new ErrorReporter();
 		SourceFile source = new SourceFile(filename, reporter);
 		scanner = new Scanner(source, reporter);
-		parser = new Parser(scanner, reporter/*, true*/);
-		parser.parse();
-		return reporter.getNumErrors() == 0;
+		parser = new Parser(scanner, reporter, true);
+		ast = parser.parse();
+		return ast;
 	}
 	
 	public static void main(String[] args) {
+		ASTDisplay ad= new ASTDisplay();
+		Package ast;
 		if (checkArgs(args)) {
 			String filename = args[0];
-			if(compile(filename)) {
+			ast = compile(filename);
+			if(reporter.getNumErrors() == 0) {
+				ad.showTree(ast);
 				System.exit(0);
 			} else {
 				for (String e : reporter.errors) {

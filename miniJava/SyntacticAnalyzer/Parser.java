@@ -168,7 +168,7 @@ public class Parser {
      * 		}
      */
     private MethodDecl parseMethodDeclaration(FieldDecl f){
-    	ParameterDeclList pl = null;
+    	ParameterDeclList pl = new ParameterDeclList();
     	StatementList sl = new StatementList();
     	Expression e = null;
     	
@@ -401,7 +401,7 @@ public class Parser {
 		if(verbose)
 			System.out.println("parseReferenceTail");
 		accept(Token.DOT);
-		r = parseDotFollow();
+		r = parseDotFollow(ref);
 		if(inRefTailStarterSet(currentToken.type)) {
 			return parseRefTail(r);
 		} else {
@@ -412,7 +412,7 @@ public class Parser {
 	/* DotFollow ->
 	 * 		id RefArrID?
 	 */
-    private Reference parseDotFollow(){
+    private Reference parseDotFollow(Reference r){
     	IdRef id;
     	if(verbose)
     		System.out.println("parseDotFollow");
@@ -422,10 +422,11 @@ public class Parser {
     	int idend = currentToken.position.start;
     	Identifier i = new Identifier(name, new SourcePosition(idstart, idend));
     	id = new IdRef(i, i.posn);
+    	//Something funky with names here
     	if(inRefArrIDStarterSet(currentToken.type)) {
     		return parseRefArrID(id);
     	} else {
-    		return new QualifiedRef(id, i, id.posn);
+    		return new QualifiedRef(r, i, i.posn);
     	}
     };
     
@@ -451,7 +452,8 @@ public class Parser {
     		return new BlockStmt(bsl, currentToken.position);
     	// Derivations starting with ID
     	case(Token.ID):
-    		int ididstart = currentToken.position.start,iddeclstart = currentToken.position.start;
+    		int ididstart = currentToken.position.start;
+    		int iddeclstart = currentToken.position.start;
     		int ididend, iddeclend;
     		Identifier id;
     		IdRef iref;
@@ -480,26 +482,25 @@ public class Parser {
     			// Reference SmtRefTail
     			// id RefArrID RefTail? SmtRefTail
     			} else {
+    				//Indexed Ref
+    				IndexedRef indexref;
     				exp = parseExpression();
     				accept(Token.RBRACKET);
     				ididend = currentToken.position.start;
     				id = new Identifier(name, new SourcePosition(ididstart, ididend));
     				iref = new IdRef(id, id.posn);
+    				indexref = new IndexedRef(iref, exp, exp.posn);
     				
     				//Qualified Ref
     				if(inRefTailStarterSet(currentToken.type)) {
     					Reference qrr;
-    					QualifiedRef qualref;
     					ididend = currentToken.position.start;
-    					id = new Identifier(name, new SourcePosition(ididstart, ididend));
-    					iref = new IdRef(id, id.posn);
-    					qrr = parseRefTail(iref);
-    					qualref = new QualifiedRef(qrr, id, iref.posn);
-    					return parseSmtRefTail(qualref);
-    					//return parseSmtRefTail(qr);
+    					qrr = parseRefTail(indexref);
+    					
+    					return parseSmtRefTail(qrr);
     				} else {
     					//AssignStatement || Call Statement
-    					return parseSmtRefTail(iref);
+    					return parseSmtRefTail(indexref);
     				}
     			}
     		// Reference SmtRefTail
@@ -767,7 +768,7 @@ public class Parser {
     		Expression e;
     		acceptIt();
     		e = parseExpression();
-    		accept(Token.LPAREN);
+    		accept(Token.RPAREN);
     		if(inExpTailStarterSet(currentToken.type)){
     			return parseExpTail(e);
     		} else {
