@@ -15,7 +15,6 @@ import miniJava.*;
 public class Parser {
     private Scanner scanner;
     private Token currentToken;
-    private Token previousToken;
     private ErrorReporter errorReporter;
     private SourcePosition previousTokenPosition;
     private boolean verbose = false;
@@ -50,7 +49,6 @@ public class Parser {
         		System.out.println(msg);
         	}
             previousTokenPosition = currentToken.position;
-            previousToken = currentToken;
             currentToken = scanner.scan();
         } else {
         	//Sometimes tokenExpected is whitespace
@@ -65,7 +63,6 @@ public class Parser {
     	if(verbose)
     		System.out.println("AcceptIt: " + currentToken.spelling);
         previousTokenPosition = currentToken.position;
-        previousToken = currentToken;
         currentToken = scanner.scan();
     }
 
