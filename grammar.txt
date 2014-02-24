@@ -42,7 +42,7 @@ SmtRefTail -> = Expression ; | ( ArgumentList? ) ;
 
 Expression ->
 	  Reference ExpRefTail? ExpTail?
-	| unop Expression ExpTail?
+	| unop Expression
 	| ( Expression ) ExpTail?
 	| num ExpTail?
 	| true
@@ -52,10 +52,20 @@ ExpTail -> binop Expression
 ExpRefTail -> ( ArgumentList? )
 ExpDecl -> id (() | [ Expression ]) | int [ Expression ]	
 
-
-
 Expression ->
 	(num | id) ExpRefTail? ExpTail?
+	| unop Expression 
+
 
 ExpRefTail -> ( ArgumentList? )
 ExpTail -> binop Expression
+ExpTailPrime -> (+ | - ) NewTerm
+
+
+Expression -> Term ExpPrime?
+ExpPrime -> + Exp | - Exp
+
+Term -> Factor TermPrime?
+TermPrime -> * Term | / Term
+
+Factor -> num | ( Expression ) | unop Factor
