@@ -250,6 +250,8 @@ public class Parser {
     		String cn = currentToken.spelling;
     		Identifier classname = new Identifier(cn, currentToken.position);
     		acceptIt();
+    		/*String cn = currentToken.spelling;
+    		Identifier classname = new Identifier(cn, currentToken.position);*/
     		// ArrayType aka ClassType aka id[]
     		if(currentToken.type == Token.LBRACKET) {
     			acceptIt();
@@ -471,7 +473,9 @@ public class Parser {
     				acceptIt();
     				ididend = currentToken.position.start;
     				SourcePosition posn = new SourcePosition(ididstart, ididend);
-    				ArrayType intarrtype = new ArrayType(new BaseType(TypeKind.INT, posn), posn);
+    				Identifier classid = new Identifier(name, posn);
+    				ArrayType intarrtype = new ArrayType(new ClassType(classid, posn), posn);
+    				name = currentToken.spelling;
     				accept(Token.ID);
     				accept(Token.ASSIGN);
     				exp = parseExpression();
@@ -517,6 +521,7 @@ public class Parser {
 			// Type id = Expression ;
     		// id id = Expression ;
     		} else if(currentToken.type == Token.ID) {
+    			String varname = currentToken.spelling;
     			acceptIt();
     			ididend = currentToken.position.start;
     			SourcePosition posn = new SourcePosition(ididstart, ididend);
@@ -526,7 +531,7 @@ public class Parser {
     			exp = parseExpression();
     			accept(Token.SEMICOLON);
     			iddeclend = currentToken.position.start;
-    			vardec = new VarDecl(classtype, name, classtype.posn);
+    			vardec = new VarDecl(classtype, varname, classtype.posn);
     			return new VarDeclStmt(vardec, exp, new SourcePosition(iddeclstart, iddeclend));
     		//Assign statement
     		// Reference SmtRefTail
@@ -738,6 +743,8 @@ public class Parser {
     		} else {
     			e1 = rxp;
     		}
+    		//Operator precedence
+    		//
     		if(inExpTailStarterSet(currentToken.type)) {
     			e2 = parseExpTail(e1);
     		} else {
@@ -757,12 +764,12 @@ public class Parser {
     		o = new Operator(op, new SourcePosition(opstart, opend));
     		e1 = parseExpression();
     		exprend = currentToken.position.start;
-    		if(inExpTailStarterSet(currentToken.type)) {
+    		/*if(inExpTailStarterSet(currentToken.type)) {
     			e2 = parseExpTail(e1);
     		} else {
     			e2 = e1;
-    		}
-    		return new UnaryExpr(o, e2, new SourcePosition(opstart, exprend));
+    		}*/
+    		return new UnaryExpr(o, e1, new SourcePosition(opstart, exprend));
     	// ( Expression ) ExpTail?
     	} else if(currentToken.type == Token.LPAREN) {
     		Expression e;
@@ -835,17 +842,19 @@ public class Parser {
     	switch(currentToken.type) {
     	case(Token.INT):
     		BaseType inttype;
+    		ArrayType arrtype;
     		Expression intexp;
     		int stint, stopint;
     		stint = currentToken.position.start;
     		acceptIt();
     		stopint = currentToken.position.start;
     		inttype = new BaseType(TypeKind.INT, new SourcePosition(stint, stopint));
+    		arrtype = new ArrayType(inttype, inttype.posn);
     		accept(Token.LBRACKET);
     		intexp = parseExpression();
     		accept(Token.RBRACKET);
     		nwxpstop = currentToken.position.start;
-    		return new NewArrayExpr(inttype, intexp, new SourcePosition(nwxpstart, nwxpstop));
+    		return new NewArrayExpr(arrtype, intexp, new SourcePosition(nwxpstart, nwxpstop));
     	// NewObjectExpr
     	// id ( () | [ Expression ] )
     	case(Token.ID):
@@ -871,7 +880,7 @@ public class Parser {
     			e = parseExpression();
     			accept(Token.RBRACKET);
     			expstop = currentToken.position.start;
-    			return new NewArrayExpr(ct, e, new SourcePosition(ctstart, expstop));
+    			return new NewArrayExpr(new ArrayType(ct, ct.posn), e, new SourcePosition(ctstart, expstop));
     		} else {
     			syntacticError("Malformed id\n"
     				+ "\tid cannot be followed by ", currentToken.spelling);
@@ -913,21 +922,51 @@ public class Parser {
 		Operator o;
 		Token tk;
 		Expression e2;
+		Expression e3;
 		int estart, estop;
 		estart = currentToken.position.start - currentToken.spelling.length();
 		int ostart, ostop;
 		if(verbose)
 			System.out.println("parseExpTail");
 		//if(isBinop(currentToken.type)) {
-		ostart = currentToken.position.start;
-		tk = currentToken;
-		acceptIt();
-		ostop = currentToken.position.start;
-		o = new Operator(tk, new SourcePosition(ostart, ostop));
-		e2 = parseExpression();
-		estop = currentToken.position.start;
-		return new BinaryExpr(o, e1, e2, new SourcePosition(estart, estop));
-		//}
+		//Here comes operator precedence
+		//Highest to lowest
+		// *, /
+		// +, -
+		// <=, <, >, >=
+		// ==, !=
+		// &&
+		// ||
+		if(currentToken.type == Token.OR) {
+			ostart = currentToken.position.start;
+			tk = currentToken;
+			acceptIt();
+			ostop = currentToken.position.start;
+			o = new Operator(tk, new SourcePosition(ostart, ostop));
+			e2 = parseExpression();
+			estop = currentToken.position.start;
+			return new BinaryExpr(o, e1, e2, new SourcePosition(estart, estop));
+		}
+		else if(currentToken.type == Token.TIMES || currentToken.type == Token.DIV) {
+			ostart = currentToken.position.start;
+			tk = currentToken;
+			acceptIt();
+			ostop = currentToken.position.start;
+			o = new Operator(tk, new SourcePosition(ostart, ostop));
+			e2 = parseExpression();
+			estop = currentToken.position.start;
+			return new BinaryExpr(o, e1, e2,/*e3,*/ new SourcePosition(estart, estop));
+		} else {
+			ostart = currentToken.position.start;
+			tk = currentToken;
+			acceptIt();
+			ostop = currentToken.position.start;
+			o = new Operator(tk, new SourcePosition(ostart, ostop));
+			e2 = parseExpression();
+			estop = currentToken.position.start;
+			return new BinaryExpr(o, e1, e2,/*e3,*/ new SourcePosition(estart, estop));
+			
+		}
 	}
 
 	private boolean inDeclaratorStarterSet(int type) {

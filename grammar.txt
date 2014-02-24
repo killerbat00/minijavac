@@ -13,7 +13,7 @@ MethodDeclaration ->
 
 Declarators -> (public | private)? static? Type
 
-Type -> PrimType | ClassType | ArrType
+Type -> PrimType | ClassType | ArrType	
 
 PrimType -> int | boolean | void
 
@@ -48,15 +48,14 @@ Expression ->
 	| true
 	| false
 	| new ExpDecl ExpTail?
-ExpTail -> binop Expression ExpTail? 
+ExpTail -> binop Expression
 ExpRefTail -> ( ArgumentList? )
 ExpDecl -> id (() | [ Expression ]) | int [ Expression ]	
 
-MathExp -> Term MathExp'?
-MathExp' -> (+ | -) MathExp
-Term -> Factor Term'?
-Term' -> (* | / ) Term
-Factor ->
-		id
-	| ( MathExp )
-	| - Factor
+
+
+Expression ->
+	(num | id) ExpRefTail? ExpTail?
+
+ExpRefTail -> ( ArgumentList? )
+ExpTail -> binop Expression
