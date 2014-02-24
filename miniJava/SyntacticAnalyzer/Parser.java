@@ -751,10 +751,10 @@ public class Parser {
     			e2 = e1;
     		}
     		return e2;
-    	// unop Expression ExpTail?
+    	// unop Expression
     	} else if(currentToken.type == Token.MINUS || 
     			currentToken.type == Token.NOT) {
-    		Expression e1, e2;
+    		Expression e1;
     		Token op = currentToken;
     		Operator o;
     		int opstart, opend, exprend;
@@ -764,11 +764,6 @@ public class Parser {
     		o = new Operator(op, new SourcePosition(opstart, opend));
     		e1 = parseExpression();
     		exprend = currentToken.position.start;
-    		/*if(inExpTailStarterSet(currentToken.type)) {
-    			e2 = parseExpTail(e1);
-    		} else {
-    			e2 = e1;
-    		}*/
     		return new UnaryExpr(o, e1, new SourcePosition(opstart, exprend));
     	// ( Expression ) ExpTail?
     	} else if(currentToken.type == Token.LPAREN) {
@@ -842,19 +837,17 @@ public class Parser {
     	switch(currentToken.type) {
     	case(Token.INT):
     		BaseType inttype;
-    		ArrayType arrtype;
     		Expression intexp;
     		int stint, stopint;
     		stint = currentToken.position.start;
     		acceptIt();
     		stopint = currentToken.position.start;
     		inttype = new BaseType(TypeKind.INT, new SourcePosition(stint, stopint));
-    		arrtype = new ArrayType(inttype, inttype.posn);
     		accept(Token.LBRACKET);
     		intexp = parseExpression();
     		accept(Token.RBRACKET);
     		nwxpstop = currentToken.position.start;
-    		return new NewArrayExpr(arrtype, intexp, new SourcePosition(nwxpstart, nwxpstop));
+    		return new NewArrayExpr(inttype, intexp, new SourcePosition(nwxpstart, nwxpstop));
     	// NewObjectExpr
     	// id ( () | [ Expression ] )
     	case(Token.ID):
@@ -880,7 +873,7 @@ public class Parser {
     			e = parseExpression();
     			accept(Token.RBRACKET);
     			expstop = currentToken.position.start;
-    			return new NewArrayExpr(new ArrayType(ct, ct.posn), e, new SourcePosition(ctstart, expstop));
+    			return new NewArrayExpr(ct, e, new SourcePosition(ctstart, expstop));
     		} else {
     			syntacticError("Malformed id\n"
     				+ "\tid cannot be followed by ", currentToken.spelling);
@@ -922,7 +915,6 @@ public class Parser {
 		Operator o;
 		Token tk;
 		Expression e2;
-		Expression e3;
 		int estart, estop;
 		estart = currentToken.position.start - currentToken.spelling.length();
 		int ostart, ostop;
@@ -955,7 +947,7 @@ public class Parser {
 			o = new Operator(tk, new SourcePosition(ostart, ostop));
 			e2 = parseExpression();
 			estop = currentToken.position.start;
-			return new BinaryExpr(o, e1, e2,/*e3,*/ new SourcePosition(estart, estop));
+			return new BinaryExpr(o, e1, e2, new SourcePosition(estart, estop));
 		} else {
 			ostart = currentToken.position.start;
 			tk = currentToken;
@@ -964,8 +956,7 @@ public class Parser {
 			o = new Operator(tk, new SourcePosition(ostart, ostop));
 			e2 = parseExpression();
 			estop = currentToken.position.start;
-			return new BinaryExpr(o, e1, e2,/*e3,*/ new SourcePosition(estart, estop));
-			
+			return new BinaryExpr(o, e1, e2, new SourcePosition(estart, estop));
 		}
 	}
 

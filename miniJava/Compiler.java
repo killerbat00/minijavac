@@ -30,8 +30,7 @@ public class Compiler {
 			return false;
 		}
 	}
-	
-	//At this point, we're returning an AST
+
 	static Package compile(String filename) {
 		Package ast;
 		reporter = new ErrorReporter();
