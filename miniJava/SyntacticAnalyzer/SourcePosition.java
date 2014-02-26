@@ -10,26 +10,36 @@
 package miniJava.SyntacticAnalyzer;
 
 public class SourcePosition {
-	public int start, finish, line;
+	public int start, finish, linestart, linefinish;
 	
 	public SourcePosition() {
-		line = 0;
-		start = 0;
-		finish = 0;
+		linestart = 1;
+		linefinish = 1;
+		start = 1;
+		finish = 1;
 	}
 	
-	public SourcePosition(int l, int st, int fin) {
-		line = l;
+	//Keeps track of Token's position
+	public SourcePosition(int line, int st, int fi) {
+		linestart = line;
+		linefinish = 0;
 		start = st;
-		finish = fin;
+		finish = fi;
 	}
 	
-	public SourcePosition(int start2, int end) {
-		start = start2;
-		finish = end;
+	//Keeps track of any AST related positioning that may span
+	//multiple lines
+	public SourcePosition(int ls, int lf, int s, int f) {
+		linestart = ls;
+		linefinish = lf;
+		start = s;
+		finish = f;
 	}
 
 	public String toString() {
-		return "Line: " + line + " (" + start + ", " + finish + ")";
+		String lines = linefinish == 0 ? 
+				"Line: " + linestart :
+				"Lines: (" + linestart + "," + linefinish +")";
+		return lines + " (" + start + ", " + finish + ")";
 	}
 }

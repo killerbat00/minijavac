@@ -21,7 +21,6 @@ public class Scanner {
 	private boolean currentlyScanningToken;
 	
 	private int comStart;
-	private int comStartLine;
 	private int comFinish;
 	int currentCharNum = 1;
 	int currentLineNum = 1;
@@ -187,16 +186,15 @@ public class Scanner {
 	private boolean scanSeparator() {
 		switch(currentChar) {
 		case '/':
-			comStartLine = currentLineNum;
 			comStart = currentCharNum;
 			consume();
 			comFinish = currentCharNum;
 			
-			if(currentChar == '/')
+			if(currentChar == '/') 
 				SLComment();
-			else if(currentChar == '*')
+			 else if(currentChar == '*') 
 				MLComment();
-			else
+			 else
 				return true;
 			break;
 			
@@ -246,7 +244,6 @@ public class Scanner {
 			isDiv = scanSeparator();
 			if(isDiv) {
 				pos = new SourcePosition();
-				pos.line = comStartLine;
 				pos.start = comStart;
 				pos.finish = comFinish;
 				tok = new Token(Token.DIV, "/", pos);
@@ -256,13 +253,10 @@ public class Scanner {
 		
 		currentlyScanningToken = true;
 		currentSpelling = new StringBuffer("");
-		pos = new SourcePosition();
-		pos.line = currentLineNum;
-		pos.start = currentCharNum;
+		pos = new SourcePosition(currentLineNum, currentCharNum, 0);
 		type = scanToken();
 		pos.finish = currentCharNum;
 		tok = new Token(type, currentSpelling.toString(), pos);
-		
 		return tok;
 	}
 	

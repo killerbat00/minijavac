@@ -1,0 +1,96 @@
+Start -> Program $
+
+Program -> (ClassDeclaration)* EOT
+
+ClassDeclaration ->
+	class id {
+		(FieldDeclaration | MethodDeclaration)*
+	}
+
+FieldDeclaration -> Declarators id ;
+
+MethodDeclaration ->
+	Declarators id (ParemeterList?) {
+		Statement* ReturnExpr?
+	}
+
+ReturnExpr -> return Expression ;
+
+Declarators -> (public | private)? static? Type
+
+Type -> PrimType | ClassType | ArrType
+
+PrimType -> int | boolean | void
+
+ClassType -> id
+
+ArrType -> int ArrEnd | ClassType ArrEnd
+ArrEnd -> []
+
+ParameterList -> Type id ParameterListTail*
+ParameterListTail -> , Type id
+
+ArgumentList -> Expression ArgumentListTail*
+ArgumentListTail -> , Expression
+
+Reference -> BaseRef RefTail?
+RefTail -> . DotFollow RefTail?
+BaseRef -> this | DotFollow
+DotFollow -> id | id RefArrID
+RefArrID -> [ Expression ]
+
+Statement ->
+		BlockStmt
+	|	VarDecl
+	|	Reference SmtRefTail
+	|	FuncCall
+	|	IfStmt
+	|	WhileStmt
+BlockStmt -> { Statement* }
+VarDecl -> Type id SmtRefTail
+FuncCall -> Reference SmtRefTail
+IfStmt -> if ( Expression ) Statement (else Statement)?
+WhileStmt -> while ( Expression ) Statement
+SmtRefTail -> = Expression ; | ( ArgumentList? ) ;
+
+//Left Recursive
+Expression ->
+		Reference
+	|	Reference ( ArgumentList? )
+	|	unop Expression
+	|	Expression binop Expression
+	|	( Expression )
+	|	num | true | false
+	|	new (id() | int [ Expression ] | id [ Expression ])
+
+//Non left-recursive but no operator precedence
+Expression ->
+		Reference RefExp? BinExp?
+	|	unop Expression
+	|	( Expression ) BinExp?
+	|	LitExp
+	|	NewExp BinExp?
+RefExp -> ( ArgumentList? ) BinExp?
+BinExp -> binop Expression
+LitExp -> num | true | false
+NewExp -> new NewExpTail
+NewExpTail -> (id EmptyObj | int ArrExpTail | id ArrExpTail)
+ArrExpTail -> [ Expression ]
+EmptyObj -> ()
+
+//Non left-recursive and operator precendence
+Expression -> A (|| Expression)*
+A -> B (&& A)*
+B -> C ((== | !=) B)*
+C -> D ((<= | < | > | >=) C)*
+D -> E ((+ | -) D)*
+E -> F ((* | /) E)*
+F -> 
+	  Reference RefExp?
+	| ( Expression )
+	| unop Expression
+	| num | true | false
+	| new ExpDecl 
+RefExp -> ( ArgumentList? )
+ExpDecl -> id(() | [ Expression ]) | int [ Expression ]
+
