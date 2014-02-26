@@ -49,9 +49,12 @@ public class Parser {
     	String msg = null;
         if(currentToken.type == tokenExpected) {
         	if(verbose) {
+        		System.out.println("CurrentToken: " + currentToken.spelling +
+        				"\nExpectedToken: " + Token.spell(tokenExpected));
         		msg = currentToken.type == Token.EOT ? "End of Text" :
         			"Accept: " + currentToken.spelling;
         		System.out.println(msg);
+        		
         	}
             previousTokenPosition = currentToken.position;
             currentToken = scanner.scan();
@@ -66,6 +69,7 @@ public class Parser {
 
     void acceptIt() {
     	if(verbose)
+    		System.out.println("CurrentToken: " + currentToken.spelling);
     		System.out.println("AcceptIt: " + currentToken.spelling);
         previousTokenPosition = currentToken.position;
         currentToken = scanner.scan();
@@ -172,17 +176,19 @@ public class Parser {
     	SourcePosition mthddeclpos = f.posn;
     	Expression e = null;
     	
-    	if(verbose) System.out.println("parseMethodDeclaration");
+    	if(verbose) System.out.println("parseMethodDeclaration()");
     	// previously parsed Declarators & id
     	// currentToken == LPAREN
     	accept(Token.LPAREN);
     	if(inParameterListStarterSet(currentToken.type))
     		pdl = parseParameterList();
+    	System.out.println(currentToken.spelling);
     	accept(Token.RPAREN);
     	accept(Token.LCURLY);
     	
-    	while(inStatementStarterSet(currentToken.type))
+    	while(inStatementStarterSet(currentToken.type)) {
     		sl.add(parseStatement());
+    	}
     	
     	if(currentToken.type == Token.RETURN) {
     		acceptIt();
@@ -205,10 +211,21 @@ public class Parser {
     	
     	if(verbose) System.out.println("parseDeclarators()");
     	start(declpos);
-    	isPriv = currentToken.type == Token.PRIVATE;
-    	acceptIt();
-    	isStatic = currentToken.type == Token.STATIC;
-    	acceptIt();
+    	if(currentToken.type == Token.PUBLIC ||
+    			currentToken.type == Token.PRIVATE) {
+    		if(currentToken.type == Token.PUBLIC)
+    			isPriv = false;
+    		else
+    			isPriv = true;
+    		acceptIt();
+    	}
+
+    	if(currentToken.type == Token.STATIC) {
+    		acceptIt();
+    		isStatic = true;
+    	} else {
+    		isStatic = false;
+    	}
     	typeAST = parseType();
     	finish(declpos);
     	return new FieldDecl(isPriv, isStatic, typeAST, typeAST.typeKind.name(), declpos);
@@ -275,6 +292,7 @@ public class Parser {
     	start(pdpos);
     	Type t = parseType();
     	declName = currentToken.spelling;
+    	if(verbose) System.out.println("parseParameterList()");
     	accept(Token.ID);
     	finish(pdpos);
     	pdl.add(new ParameterDecl(t, declName, pdpos));
@@ -288,6 +306,7 @@ public class Parser {
     		start(pdpos);
     		tt = parseType();
     		declName = currentToken.spelling;
+    		accept(Token.ID);
     		finish(pdpos);
     		pdl.add(new ParameterDecl(tt, declName, pdpos));
     	}
@@ -670,7 +689,7 @@ public class Parser {
     	Expression re;
     	ExprList args = new ExprList();
     	SourcePosition spos = r.posn;
-    	if(verbose) System.out.println("oldparseSmtRefTail");
+    	if(verbose) System.out.println("parseSmtRefTail()");
     	switch(currentToken.type) {
     	// = Expression ;
     	case(Token.ASSIGN):
@@ -709,18 +728,19 @@ public class Parser {
     	while(currentToken.type == Token.OR) {
     		//becomes left operator
     		o = new Operator(currentToken, currentToken.position);
+    		accept(Token.OR);
     		tmp = parseExpression();
     		finish(epos);
     		l = new BinaryExpr(o, l, tmp, epos);
     	}
     	return l;
     }
-    /*
+
+	/*
      * A -> B (&& A)*
      */
     private Expression parseA() {
     	Expression l, tmp;
-    	Expression r = null;
     	Operator o;
     	SourcePosition epos = new SourcePosition();
     	start(epos);
@@ -728,23 +748,17 @@ public class Parser {
     	l = parseB();
     	while(currentToken.type == Token.AND) {
     		o = new Operator(currentToken, currentToken.position);
+    		accept(Token.AND);
     		tmp = parseA();
-    		finish(epos);
-    		r = new BinaryExpr(o, l, tmp, epos);
+    		l = new BinaryExpr(o, l, tmp, epos);
     	}
-    	System.out.println(r);
-    	System.out.println(currentToken.spelling);
-    	if(r == null)
-    		return l;
-    	else
-    		return r;
+    	return l;
     }
     /* 
      * B -> C (( == | != ) B)*
      */
     private Expression parseB() {
     	Expression l, tmp;
-    	Expression r = null;
     	Operator o;
     	SourcePosition epos = new SourcePosition();
     	start(epos);
@@ -753,23 +767,18 @@ public class Parser {
     	while(currentToken.type == Token.EQUAL ||
     			currentToken.type == Token.NOTEQUAL) {
     		o = new Operator(currentToken, currentToken.position);
+    		acceptIt();
     		tmp = parseB();
     		finish(epos);
-    		r = new BinaryExpr(o, l, tmp, epos);
+    		l = new BinaryExpr(o, l, tmp, epos);
     	}
-    	System.out.println(r);
-    	System.out.println(currentToken.spelling);
-    	if(r == null)
-    		return l;
-    	else
-    		return r;
+    	return l;
     }
     /*
      * C -> D ((<= | < | > | >=) C)*
      */
     private Expression parseC() {
     	Expression l, tmp;
-    	Expression r = null;
     	Operator o;
     	SourcePosition epos = new SourcePosition();
     	start(epos);
@@ -780,23 +789,18 @@ public class Parser {
     			currentToken.type == Token.GREATER ||
     			currentToken.type == Token.GTEQUAL) {
     		o = new Operator(currentToken, currentToken.position);
+    		acceptIt();
     		tmp = parseC();
     		finish(epos);
-    		r = new BinaryExpr(o, l, tmp, epos);
+    		l = new BinaryExpr(o, l, tmp, epos);
     	}
-    	System.out.println(r);
-    	System.out.println(currentToken.spelling);
-    	if(r == null)
-    		return l;
-    	else
-    		return r;
+    	return l;
     }
     /*
      * D -> E ((+ | -) D)*
      */
     private Expression parseD() {
     	Expression l, tmp;
-    	Expression r = null;
     	Operator o;
     	SourcePosition epos = new SourcePosition();
     	start(epos);
@@ -805,23 +809,18 @@ public class Parser {
     	while(currentToken.type == Token.PLUS ||
     			currentToken.type == Token.MINUS) {
     		o = new Operator(currentToken, currentToken.position);
+    		acceptIt();
     		tmp = parseD();
     		finish(epos);
-    		r = new BinaryExpr(o, l, tmp, epos);
+    		l = new BinaryExpr(o, l, tmp, epos);
     	}
-    	System.out.println(r);
-    	System.out.println(currentToken.spelling);
-    	if(r == null)
-    		return l;
-    	else
-    		return r;
+    	return l;
     }
     /*
      * E -> F ((* | /) E)*
      */
     private Expression parseE() {
     	Expression l, tmp;
-    	Expression r = null;
     	Operator o;
     	SourcePosition epos = new SourcePosition();
     	start(epos);
@@ -830,16 +829,12 @@ public class Parser {
     	while(currentToken.type == Token.TIMES ||
     			currentToken.type == Token.DIV) {
     		o = new Operator(currentToken, currentToken.position);
+    		acceptIt();
     		tmp = parseE();
     		finish(epos);
-    		r = new BinaryExpr(o, l, tmp, epos);
+    		l = new BinaryExpr(o, l, tmp, epos);
     	}
-    	System.out.println(r);
-    	System.out.println(currentToken.spelling);
-    	if(r == null)
-    		return l;
-    	else
-    		return r;
+    	return l;
     }
     /*
      * F ->
@@ -988,14 +983,12 @@ public class Parser {
     			type == Token.STATIC ||
     			inTypeStarterSet(type));
     }
-    
     private boolean inTypeStarterSet(int type) {
     	return (type == Token.INT ||
     			type == Token.BOOLEAN ||
     			type == Token.VOID ||
     			type == Token.ID);
-    }
-    
+    } 
     private boolean inStatementStarterSet(int type) {
     	return (type == Token.LCURLY ||
     			inTypeStarterSet(type) ||
@@ -1003,12 +996,10 @@ public class Parser {
     			type == Token.IF ||
     			type == Token.WHILE
     			);
-    }
-    
+    }   
     private boolean inParameterListStarterSet(int type) {
     	return (inTypeStarterSet(type));
-    }
-    
+    } 
     private boolean inExpressionStarterSet(int type) {
 		return (inReferenceStarterSet(type) ||
 				type == Token.MINUS || type == Token.NOT || //unop 
@@ -1016,28 +1007,37 @@ public class Parser {
 				type == Token.INTLITERAL ||
 				type == Token.NEW
 				);
-	}
-    
+	}  
     private boolean inRefTailStarterSet(int type) {
 		return (type == Token.DOT);
 	}
-
 	private boolean inBaseRefStarterSet(int type) {
 		return (type == Token.THIS);
 	}
-	
 	private boolean inRefArrIDStarterSet(int type) {
 		return (type == Token.LBRACKET);
 	}
-	
 	private boolean inArgumentListStarterSet(int type) {
 		return (inExpressionStarterSet(type));
 	}
-
 	private boolean inReferenceStarterSet(int type) {
 		return (inBaseRefStarterSet(type) || type == Token.ID);
 	}
 	private boolean inRefExpStarterSet(int type) {
 		return (type == Token.LPAREN);
-	}
+	}/*
+    private boolean isBinop(int type) {
+		return (type == Token.AND ||
+				type == Token.OR ||
+				type == Token.EQUAL ||
+				type == Token.NOTEQUAL ||
+				type == Token.LTEQUAL ||
+				type == Token.LESS ||
+				type == Token.GREATER ||
+				type == Token.GTEQUAL ||
+				type == Token.PLUS ||
+				type == Token.MINUS ||
+				type == Token.TIMES ||
+				type == Token.DIV);
+	}*/
 }
